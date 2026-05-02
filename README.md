@@ -155,7 +155,7 @@ webapp/
 ## 👥 Contributors
 
 * **Sara Ammar**
-* *(Add collaborator after acceptance)*
+* *Heba Daher*
 
 ---
 
