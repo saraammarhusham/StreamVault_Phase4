@@ -10,6 +10,10 @@ import java.util.List;
 
 public class ContentService {
 
+    // ══════════════════════════════════════════════════════════════════════
+    //  BROWSE / FILTER CONTENT
+    // ══════════════════════════════════════════════════════════════════════
+
     public static List<ContentItem> browseContent(String search, String genre,
                                                   String type, String language,
                                                   String sortBy, int page, int pageSize) {
@@ -82,7 +86,6 @@ public class ContentService {
 
             while (rs.next()) {
                 ContentItem item = new ContentItem();
-
                 item.setContentId(rs.getInt("content_id"));
                 item.setTitle(rs.getString("title"));
                 item.setContentType(rs.getString("content_type"));
@@ -94,7 +97,6 @@ public class ContentService {
                 item.setStudioName(rs.getString("studio_name"));
                 item.setAvgRating(rs.getDouble("avg_rating"));
                 item.setGenres(rs.getString("genres"));
-
                 list.add(item);
             }
 
@@ -104,6 +106,10 @@ public class ContentService {
 
         return list;
     }
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  GET SINGLE CONTENT ITEM
+    // ══════════════════════════════════════════════════════════════════════
 
     public static ContentItem getContentById(int contentId) {
         String sql =
@@ -125,12 +131,10 @@ public class ContentService {
              PreparedStatement ps = conn.prepareStatement(sql)) {
 
             ps.setInt(1, contentId);
-
             ResultSet rs = ps.executeQuery();
 
             if (rs.next()) {
                 ContentItem item = new ContentItem();
-
                 item.setContentId(rs.getInt("content_id"));
                 item.setTitle(rs.getString("title"));
                 item.setContentType(rs.getString("content_type"));
@@ -143,7 +147,6 @@ public class ContentService {
                 item.setStudioName(rs.getString("studio_name"));
                 item.setAvgRating(rs.getDouble("avg_rating"));
                 item.setGenres(rs.getString("genres"));
-
                 return item;
             }
 
@@ -153,6 +156,10 @@ public class ContentService {
 
         return null;
     }
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  EPISODES
+    // ══════════════════════════════════════════════════════════════════════
 
     public static List<Episode> getEpisodes(int contentId) {
         List<Episode> list = new ArrayList<>();
@@ -168,12 +175,10 @@ public class ContentService {
              PreparedStatement ps = conn.prepareStatement(sql)) {
 
             ps.setInt(1, contentId);
-
             ResultSet rs = ps.executeQuery();
 
             while (rs.next()) {
                 Episode ep = new Episode();
-
                 ep.setEpisodeId(rs.getInt("episode_id"));
                 ep.setContentId(contentId);
                 ep.setSeasonNumber(rs.getInt("season_number"));
@@ -181,7 +186,6 @@ public class ContentService {
                 ep.setTitle(rs.getString("title"));
                 ep.setDurationMinutes(rs.getInt("duration_minutes"));
                 ep.setSynopsis(rs.getString("synopsis"));
-
                 list.add(ep);
             }
 
@@ -191,6 +195,10 @@ public class ContentService {
 
         return list;
     }
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  REVIEWS
+    // ══════════════════════════════════════════════════════════════════════
 
     public static List<String[]> getReviews(int contentId) {
         List<String[]> reviews = new ArrayList<>();
@@ -206,7 +214,6 @@ public class ContentService {
              PreparedStatement ps = conn.prepareStatement(sql)) {
 
             ps.setInt(1, contentId);
-
             ResultSet rs = ps.executeQuery();
 
             while (rs.next()) {
@@ -224,6 +231,113 @@ public class ContentService {
 
         return reviews;
     }
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  FIX 2 — USER MOVIE RATING
+    //
+    //  submitRating() — INSERT or UPDATE a rating row for (user, content).
+    //  The ReviewsRatings table has a UNIQUE constraint on (user_id, content_id)
+    //  so we use INSERT … ON DUPLICATE KEY UPDATE to handle re-ratings.
+    //
+    //  getUserRating() — fetches a user's existing rating for a content item
+    //  so the JSP can pre-fill the rating widget when the user revisits the
+    //  content detail page.
+    //
+    //  Return codes for submitRating():
+    //    1  = inserted (new rating)
+    //    2  = updated  (user changed their rating)
+    //   -1  = failure
+    // ══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Insert or update a rating + optional review text for a content item.
+     *
+     * @param userId     the logged-in user's ID
+     * @param contentId  the content being rated
+     * @param rating     0.0 – 5.0 (validated here; rejected if out of range)
+     * @param reviewText optional review text; may be null or blank
+     * @return 1 (inserted), 2 (updated), or -1 (error)
+     */
+    public static int submitRating(int userId, int contentId,
+                                   double rating, String reviewText) {
+        // ── Validate rating range (mirrors DB CHECK constraint) ────────────
+        if (rating < 0.0 || rating > 5.0) {
+            System.err.println("[ContentService] submitRating: rating out of range: " + rating);
+            return -1;
+        }
+
+        // ── INSERT … ON DUPLICATE KEY UPDATE ──────────────────────────────
+        // The UNIQUE(user_id, content_id) constraint means a second rating
+        // from the same user simply updates the existing row instead of
+        // throwing a duplicate-key error.
+        String sql =
+                "INSERT INTO ReviewsRatings (user_id, content_id, rating, review_text, created_at) "
+                        + "VALUES (?, ?, ?, ?, NOW()) "
+                        + "ON DUPLICATE KEY UPDATE "
+                        + "    rating      = VALUES(rating), "
+                        + "    review_text = VALUES(review_text), "
+                        + "    created_at  = NOW()";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setInt(1, userId);
+            ps.setInt(2, contentId);
+            ps.setDouble(3, rating);
+
+            if (reviewText != null && !reviewText.isBlank()) {
+                ps.setString(4, reviewText.trim());
+            } else {
+                ps.setNull(4, Types.VARCHAR);
+            }
+
+            int affected = ps.executeUpdate();
+            // MySQL ON DUPLICATE KEY UPDATE: 1 row = insert, 2 rows = update
+            return (affected == 1) ? 1 : 2;
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return -1;
+        }
+    }
+
+    /**
+     * Returns the user's existing rating for a content item, or null if
+     * they have not rated it yet.
+     *
+     * Returns String[] { rating, review_text } so the JSP can pre-fill
+     * the rating form.
+     */
+    public static String[] getUserRating(int userId, int contentId) {
+        String sql =
+                "SELECT rating, review_text "
+                        + "FROM ReviewsRatings "
+                        + "WHERE user_id = ? AND content_id = ?";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setInt(1, userId);
+            ps.setInt(2, contentId);
+            ResultSet rs = ps.executeQuery();
+
+            if (rs.next()) {
+                return new String[]{
+                        String.valueOf(rs.getDouble("rating")),
+                        rs.getString("review_text")
+                };
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return null; // user has not rated this content yet
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  WATCH HISTORY
+    // ══════════════════════════════════════════════════════════════════════
 
     public static int recordWatch(int userId, int contentId, int episodeId,
                                   int progressPct, String deviceType) {
@@ -251,7 +365,6 @@ public class ContentService {
             ps.executeUpdate();
 
             ResultSet keys = ps.getGeneratedKeys();
-
             if (keys.next()) {
                 return keys.getInt(1);
             }
@@ -262,6 +375,10 @@ public class ContentService {
 
         return -1;
     }
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  GENRE & LANGUAGE LOOKUPS
+    // ══════════════════════════════════════════════════════════════════════
 
     public static List<String> getAllGenres() {
         List<String> list = new ArrayList<>();

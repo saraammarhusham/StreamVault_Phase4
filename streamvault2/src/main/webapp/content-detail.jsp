@@ -55,6 +55,7 @@
       <!-- ── Play Now ─────────────────────────────────────────────── -->
       <form id="play-form" action="${pageContext.request.contextPath}/content" method="post"
             style="margin-top:1rem;">
+        <input type="hidden" name="action"    value="watch">
         <input type="hidden" name="contentId" value="${item.contentId}">
         <input type="hidden" name="episodeId" value="0">
         <input type="hidden" name="progress"  value="0">
@@ -86,6 +87,7 @@
           <div style="display:flex;align-items:center;gap:1rem;">
             <span class="badge">${ep.durationMinutes} min</span>
             <form action="${pageContext.request.contextPath}/content" method="post" style="margin:0;">
+              <input type="hidden" name="action"    value="watch">
               <input type="hidden" name="contentId" value="${item.contentId}">
               <input type="hidden" name="episodeId" value="${ep.episodeId}">
               <input type="hidden" name="progress"  value="0">
@@ -124,12 +126,76 @@
     </c:choose>
   </div>
 
+  <!-- ══════════════════════════════════════════════════════════════════
+       FIX 2 — RATE THIS TITLE
+       Only shown to normal subscribers (not admins).
+       - Shows success banner when ?rated=true is in the URL.
+       - Shows error banner if the servlet sets ratingError.
+       - Pre-fills the form if the user has already rated this title
+         (userRating[0] = existing rating, userRating[1] = review text).
+       - Button label changes to "Update Rating" on revisit.
+       ══════════════════════════════════════════════════════════════════ -->
+  <c:if test="${sessionScope.role != 'admin'}">
+    <div class="reviews-section" style="margin-top:2rem;">
+      <h2>Rate This Title</h2>
+
+        <%-- Error banner (set by ContentDetailServlet on invalid input) --%>
+      <c:if test="${not empty ratingError}">
+        <div class="alert alert-error" style="margin-bottom:1rem;">
+          ❌ <c:out value="${ratingError}"/>
+        </div>
+      </c:if>
+
+        <%-- Success banner (redirect appends ?rated=true on save) --%>
+      <c:if test="${param.rated == 'true'}">
+        <div class="alert alert-success" style="margin-bottom:1rem;">
+          ✅ Your rating was saved successfully!
+        </div>
+      </c:if>
+
+      <form action="${pageContext.request.contextPath}/content" method="post"
+            style="max-width:480px;">
+        <input type="hidden" name="action"    value="rate"/>
+        <input type="hidden" name="contentId" value="${item.contentId}"/>
+
+        <label style="display:block;margin-bottom:.5rem;font-weight:600;">
+          Your Rating (0.5 – 5.0)
+        </label>
+        <input type="number" name="ratingValue"
+               min="0.5" max="5.0" step="0.5" required
+               style="width:120px;padding:.4rem .6rem;margin-bottom:1rem;
+                      background:var(--surface);color:var(--text);
+                      border:1px solid var(--border);border-radius:6px;"
+               value="${not empty userRating ? userRating[0] : ''}"/>
+
+        <label style="display:block;margin-bottom:.5rem;font-weight:600;">
+          Review <span style="color:var(--muted);font-weight:400;">(optional)</span>
+        </label>
+        <textarea name="reviewText" rows="3"
+                  style="width:100%;padding:.5rem .6rem;
+                         background:var(--surface);color:var(--text);
+                         border:1px solid var(--border);border-radius:6px;
+                         resize:vertical;"><c:out value="${not empty userRating ? userRating[1] : ''}"/></textarea>
+
+        <button type="submit" class="btn btn-secondary"
+                style="margin-top:.75rem;padding:.5rem 1.2rem;">
+          <c:choose>
+            <c:when test="${not empty userRating}">✏ Update Rating</c:when>
+            <c:otherwise>⭐ Submit Rating</c:otherwise>
+          </c:choose>
+        </button>
+      </form>
+    </div>
+  </c:if>
+  <!-- ── End FIX 2 ─────────────────────────────────────────────────── -->
+
 </div>
+
 <script src="${pageContext.request.contextPath}/js/main.js"></script>
 <script>
   // Set device type on page load
   document.getElementById('deviceField').value =
-    /Mobile|Android|iPhone/i.test(navigator.userAgent) ? 'Mobile' : 'Web';
+          /Mobile|Android|iPhone/i.test(navigator.userAgent) ? 'Mobile' : 'Web';
 </script>
 </body>
 </html>
