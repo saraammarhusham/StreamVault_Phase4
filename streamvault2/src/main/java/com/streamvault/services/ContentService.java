@@ -423,4 +423,126 @@ public class ContentService {
 
         return list;
     }
+    // ══════════════════════════════════════════════════════════════════════
+    //  CONTENT MANAGER CRUD
+    // ══════════════════════════════════════════════════════════════════════
+
+    public static List<ContentItem> getAllContentForManagement() {
+        List<ContentItem> list = new ArrayList<>();
+
+        String sql =
+                "SELECT c.content_id, c.studio_id, c.title, c.content_type, c.synopsis, " +
+                        "       c.release_year, c.duration_minutes, c.language, c.age_rating, " +
+                        "       c.is_available, c.poster_url, s.name AS studio_name " +
+                        "FROM ContentItems c " +
+                        "JOIN Studios s ON c.studio_id = s.studio_id " +
+                        "ORDER BY c.content_id ASC";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+
+            while (rs.next()) {
+                ContentItem item = new ContentItem();
+                item.setContentId(rs.getInt("content_id"));
+                item.setTitle(rs.getString("title"));
+                item.setContentType(rs.getString("content_type"));
+                item.setSynopsis(rs.getString("synopsis"));
+                item.setReleaseYear(rs.getInt("release_year"));
+                item.setDurationMinutes(rs.getInt("duration_minutes"));
+                item.setLanguage(rs.getString("language"));
+                item.setAgeRating(rs.getString("age_rating"));
+                item.setPosterUrl(rs.getString("poster_url"));
+                item.setStudioName(rs.getString("studio_name"));
+                list.add(item);
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return list;
+    }
+
+    public static boolean addContent(int studioId, String title, String contentType,
+                                     String synopsis, int releaseYear, int durationMinutes,
+                                     String language, String ageRating, boolean isAvailable,
+                                     String posterUrl) {
+        String sql =
+                "INSERT INTO ContentItems " +
+                        "(studio_id, title, content_type, synopsis, release_year, duration_minutes, " +
+                        "language, age_rating, is_available, poster_url) " +
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setInt(1, studioId);
+            ps.setString(2, title);
+            ps.setString(3, contentType);
+            ps.setString(4, synopsis);
+            ps.setInt(5, releaseYear);
+            ps.setInt(6, durationMinutes);
+            ps.setString(7, language);
+            ps.setString(8, ageRating);
+            ps.setBoolean(9, isAvailable);
+            ps.setString(10, posterUrl);
+
+            return ps.executeUpdate() > 0;
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    public static boolean updateContent(int contentId, int studioId, String title,
+                                        String contentType, String synopsis,
+                                        int releaseYear, int durationMinutes,
+                                        String language, String ageRating,
+                                        boolean isAvailable, String posterUrl) {
+        String sql =
+                "UPDATE ContentItems SET " +
+                        "studio_id = ?, title = ?, content_type = ?, synopsis = ?, " +
+                        "release_year = ?, duration_minutes = ?, language = ?, age_rating = ?, " +
+                        "is_available = ?, poster_url = ? " +
+                        "WHERE content_id = ?";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setInt(1, studioId);
+            ps.setString(2, title);
+            ps.setString(3, contentType);
+            ps.setString(4, synopsis);
+            ps.setInt(5, releaseYear);
+            ps.setInt(6, durationMinutes);
+            ps.setString(7, language);
+            ps.setString(8, ageRating);
+            ps.setBoolean(9, isAvailable);
+            ps.setString(10, posterUrl);
+            ps.setInt(11, contentId);
+
+            return ps.executeUpdate() > 0;
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    public static boolean deleteContent(int contentId) {
+        String sql = "DELETE FROM ContentItems WHERE content_id = ?";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setInt(1, contentId);
+            return ps.executeUpdate() > 0;
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
 }

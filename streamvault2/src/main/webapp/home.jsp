@@ -15,6 +15,9 @@
   <div class="nav-links">
     <a href="${pageContext.request.contextPath}/home">Browse</a>
     <a href="${pageContext.request.contextPath}/dashboard">My Dashboard</a>
+    <c:if test="${sessionScope.role == 'content_manager' || sessionScope.role == 'admin'}">
+      <a href="${pageContext.request.contextPath}/manage-content">Manage Content</a>
+    </c:if>
     <c:if test="${sessionScope.role == 'admin'}">
       <a href="${pageContext.request.contextPath}/admin-analytics">Analytics</a>
     </c:if>
